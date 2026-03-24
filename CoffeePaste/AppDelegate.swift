@@ -19,6 +19,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var previousApp: NSRunningApplication?
+    private var isAnimating = false
+    private var isPanelShowing: Bool = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self   // ← 新增这一行
@@ -57,13 +59,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let handlerStatus = InstallEventHandler(
                 GetApplicationEventTarget(),
                 { _, _, _ in
-                    print("✅ HotKey 触发了！")
                     DispatchQueue.main.async {
-                        if let panel = AppDelegate.shared?.panelWindow, panel.isVisible {
-                            AppDelegate.shared?.hidePanel()
-                        } else {
-                            AppDelegate.shared?.showPanel()
-                        }
+                        AppDelegate.shared?.togglePanel()
                     }
                     return noErr
                 },
@@ -71,24 +68,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             print("🔥 InstallEventHandler 结果: \(handlerStatus == noErr ? "成功" : "失败 \(handlerStatus)")")
     }
-    // 在 AppDelegate 加一个控制动画的属性
-    // 通过 NotificationCenter 通知 PanelView
+
+    func togglePanel() {
+        if isAnimating { 
+            print("⏳ 正在动画中，忽略请求")
+            return 
+        }
+        
+        print("尝试切换面板... 当前状态: isPanelShowing=\(isPanelShowing)")
+        if isPanelShowing {
+            hidePanel()
+        } else {
+            showPanel()
+        }
+    }
 
     func showPanel() {
-        print("🚀 showPanel() 被调用了")
+        if isAnimating || isPanelShowing { return }
+        isAnimating = true
+        isPanelShowing = true // 状态先行：立即标记为正在显示
         
+        print("🎬 执行 showPanel")
         previousApp = NSWorkspace.shared.frontmostApplication
-        print("   当前前台应用: \(previousApp?.localizedName ?? "未知")")
         
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        print("   屏幕尺寸: \(screen.frame)")
+        let panelHeight: CGFloat = 220
         
         if panelWindow == nil {
-            print("   首次创建 NSPanel...")
-            
-            let panelHeight: CGFloat = 220
             let panelRect = NSRect(x: screen.frame.minX,
-                                   y: screen.frame.minY,
+                                   y: screen.frame.minY - panelHeight,
                                    width: screen.frame.width,
                                    height: panelHeight)
             
@@ -100,9 +108,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             panel.level = .mainMenu
             panel.isFloatingPanel = true
-            panel.backgroundColor = .clear   // ← 临时改成半透明红，方便看
+            panel.backgroundColor = .clear
             panel.isOpaque = false
-            panel.hasShadow = false                                        // ← 临时加阴影
+            panel.hasShadow = false
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             
             let view = PanelView(
@@ -120,45 +128,71 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             
             panelWindow = panel
-            print("   NSPanel 创建完成")
-        } else {
-            print("   复用已存在的 panelWindow")
         }
         
-        // 再次设置位置
-        let panelRect = NSRect(x: screen.frame.minX,
+        guard let panel = panelWindow else { 
+            isAnimating = false
+            isPanelShowing = false
+            return 
+        }
+        
+        let finalFrame = NSRect(x: screen.frame.minX,
                                y: screen.frame.minY,
                                width: screen.frame.width,
-                               height: 220)
-        panelWindow?.setFrame(panelRect, display: true)   // ← 改成 true，强制刷新
-        print("   已设置 panel frame: \(panelRect)")
+                               height: panelHeight)
+        let startFrame = NSRect(x: screen.frame.minX,
+                               y: screen.frame.minY - panelHeight,
+                               width: screen.frame.width,
+                               height: panelHeight)
         
-        panelWindow?.orderFront(nil)
-        panelWindow?.makeKey()
-        NSApp.activate(ignoringOtherApps: true)
-        print("   orderFront + makeKey + activate 执行完毕")
+        if abs(panel.frame.origin.y - finalFrame.origin.y) > 1 {
+            panel.setFrame(startFrame, display: true)
+        }
         
+        panel.orderFront(nil)
+        panel.makeKey()
         NotificationCenter.default.post(name: .showPanel, object: nil)
-        print("   已发送 .showPanel 动画通知")
         
-        // 额外检查
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            print("   0.1秒后面板是否可见: \(self.panelWindow?.isVisible ?? false)")
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(finalFrame, display: true)
+        }) {
+            self.isAnimating = false
+            print("✅ showPanel 动画完成")
         }
     }
 
     func hidePanel() {
-        guard let panel = panelWindow, panel.isVisible else { return }
+        // 状态先行：立即检查并标记为不在显示
+        guard let panel = panelWindow, isPanelShowing, !isAnimating else { return }
+        isAnimating = true
+        isPanelShowing = false
+        
+        print("🎬 执行 hidePanel")
+        panel.makeFirstResponder(nil)
+        
+        let screen = panel.screen ?? NSScreen.main ?? NSScreen.screens[0]
+        let panelHeight: CGFloat = 220
+        let hideFrame = NSRect(x: screen.frame.minX,
+                              y: screen.frame.minY - panelHeight,
+                              width: screen.frame.width,
+                              height: panelHeight)
 
-        // 通知 SwiftUI 收起，动画结束后再隐藏窗口
-        NotificationCenter.default.post(name: .hidePanel, object: nil)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.25
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().setFrame(hideFrame, display: true)
+        }) {
             panel.orderOut(nil)
+            panel.setFrame(hideFrame, display: false)
+            self.isAnimating = false
+            print("✅ hidePanel 动画完成")
         }
     }
 
     func pasteItem(_ item: ClipboardItem) {
+        // 粘贴时直接调用 hidePanel，它会处理状态
         hidePanel()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in

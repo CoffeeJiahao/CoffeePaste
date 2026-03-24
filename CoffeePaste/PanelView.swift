@@ -4,7 +4,6 @@ struct PanelView: View {
     @Query(sort: \ClipboardItem.createdAt, order: .reverse) private var items: [ClipboardItem]
     @Environment(\.modelContext) private var modelContext
     @State private var search = ""
-    @State private var offsetY: CGFloat = 220   // 初始在屏幕外
     @State private var showOnlyImages = false
     @FocusState private var isSearchFocused: Bool
 
@@ -100,15 +99,8 @@ struct PanelView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .offset(y: offsetY)
-        // 丝滑弹簧动画
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: offsetY)
         .onReceive(NotificationCenter.default.publisher(for: .showPanel)) { _ in
-            offsetY = 0
             isSearchFocused = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .hidePanel)) { _ in
-            offsetY = 220
         }
     }
 }
