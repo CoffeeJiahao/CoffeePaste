@@ -72,7 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         
         NSApp.setActivationPolicy(.accessory)
-        container = try! ModelContainer(for: ClipboardItem.self)
+        container = try! ModelContainer(for: ClipboardItem.self, ClipGroup.self)
         monitor = ClipboardMonitor(modelContext: ModelContext(container))
         monitor.start()
         
@@ -214,7 +214,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panelWindow?.resignKey()
         
         // 3. 立即激活前一个应用
-        previousApp?.activate(options: [.activateIgnoringOtherApps])
+        previousApp?.activate()
         
         // 4. 动画结束后隐藏窗口（常驻逻辑保持不变）
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
