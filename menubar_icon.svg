@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="200">
+  <!-- 菜单栏图标版本：纯色模版 -->
+  <style>
+    .stroke-main { stroke: currentColor; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .fill-main { fill: currentColor; }
+  </style>
+
+  <!-- 剪贴板主体 -->
+  <rect x="40" y="20" width="48" height="65" rx="4" class="stroke-main" />
+  
+  <!-- 剪贴板顶部夹子 -->
+  <path d="M 54 20 V 14 C 54 11.5 56 9.5 58.5 9.5 H 69.5 C 72 9.5 74 11.5 74 14 V 20 Z" class="stroke-main" />
+  <line x1="50" y1="20" x2="78" y2="20" class="stroke-main" />
+  
+  <!-- 剪贴板上的文字线条 -->
+  <line x1="50" y1="40" x2="78" y2="40" class="stroke-main" />
+  <line x1="50" y1="55" x2="78" y2="55" class="stroke-main" />
+  <line x1="50" y1="70" x2="68" y2="70" class="stroke-main" />
+  <circle cx="75" cy="70" r="3" class="fill-main" />
+
+  <!-- 咖啡热气 -->
+  <path d="M 22 45 C 22 35 15 35 15 25" class="stroke-main" />
+  <path d="M 35 42 C 35 32 28 32 28 22" class="stroke-main" />
+
+  <!-- 咖啡杯把手 -->
+  <path d="M 46 62 C 60 62 60 80 44 80" class="stroke-main" />
+  
+  <!-- 咖啡杯主体 -->
+  <path d="M 10 52 L 14 84 C 14.5 89 18 92 23 92 H 37 C 42 92 45.5 89 46 84 L 50 52 Z" class="stroke-main" />
+</svg>

@@ -6,6 +6,13 @@ struct CoffeePasteApp: App {
 
     var body: some Scene {
         MenuBarExtra {
+            Button("显示剪贴板") {
+                delegate.togglePanel()
+            }
+            .keyboardShortcut("v", modifiers: .command)
+            
+            Divider()
+            
             SettingsLink {
                 Text("设置...")
             }
@@ -18,7 +25,7 @@ struct CoffeePasteApp: App {
             }
             .keyboardShortcut("q", modifiers: .command)
         } label: {
-            Text("☕")
+            Image("MenuBarIcon")
         }
         
         Settings { 
