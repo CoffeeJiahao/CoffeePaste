@@ -207,43 +207,71 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - 粘贴
     func pasteItem(_ item: ClipboardItem) {
-        hidePanel()
+        // 1. 立即触发 SwiftUI 收起动画
+        isPanelShowing = false
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-            self?.previousApp?.activate(options: [])
+        // 2. 立即辞去 KeyWindow，让系统焦点开始自动返回前一个应用
+        panelWindow?.resignKey()
+        
+        // 3. 立即激活前一个应用
+        previousApp?.activate(options: [.activateIgnoringOtherApps])
+        
+        // 4. 动画结束后隐藏窗口（常驻逻辑保持不变）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self, !self.isPanelShowing else { return }
+            self.panelWindow?.orderOut(nil)
+        }
+        
+        // 5. 智能轮询焦点切换情况
+        let startTime = Date()
+        func waitForFocusAndPaste() {
+            let systemWide = AXUIElementCreateSystemWide()
+            var focusedElement: AnyObject?
+            let result = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedElement)
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                let pb = NSPasteboard.general
-                pb.clearContents()
-                
-                if item.type == "image", let data = item.imageData {
-                    pb.setData(data, forType: .tiff)
-                    self?.simulateCmdV()
-                } else {
-                    pb.setString(item.content, forType: .string)
-                    
-                    let systemWide = AXUIElementCreateSystemWide()
-                    var focusedElement: AnyObject?
-                    let result = AXUIElementCopyAttributeValue(
-                        systemWide,
-                        kAXFocusedUIElementAttribute as CFString,
-                        &focusedElement
-                    )
-                    
-                    if result == .success, let element = focusedElement {
-                        let axElement = element as! AXUIElement
-                        let setResult = AXUIElementSetAttributeValue(
-                            axElement,
-                            kAXSelectedTextAttribute as CFString,
-                            item.content as CFTypeRef
-                        )
-                        if setResult != .success {
-                            self?.simulateCmdV()
-                        }
-                    } else {
-                        self?.simulateCmdV()
-                    }
-                }
+            var focusedPid: pid_t = 0
+            if result == .success, let element = focusedElement {
+                AXUIElementGetPid(element as! AXUIElement, &focusedPid)
+            }
+            
+            let myPid = ProcessInfo.processInfo.processIdentifier
+            
+            // 只要焦点不在本应用，或者已经重试了 200ms（防止死循环），就开始粘贴
+            if (focusedPid != 0 && focusedPid != myPid) || Date().timeIntervalSince(startTime) > 0.2 {
+                self.performActualPaste(item, targetElement: focusedElement)
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: waitForFocusAndPaste)
+            }
+        }
+        
+        waitForFocusAndPaste()
+    }
+    
+    private func performActualPaste(_ item: ClipboardItem, targetElement: AnyObject?) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        
+        if item.type == "image", let data = item.imageData {
+            pb.setData(data, forType: .tiff)
+            self.simulateCmdV()
+        } else {
+            pb.setString(item.content, forType: .string)
+            
+            // 优先尝试使用 Accessibility API 直接注入文本，这是最快且不依赖 Cmd+V 的方式
+            var success = false
+            if let element = targetElement {
+                let axElement = element as! AXUIElement
+                let setResult = AXUIElementSetAttributeValue(
+                    axElement,
+                    kAXSelectedTextAttribute as CFString,
+                    item.content as CFTypeRef
+                )
+                success = (setResult == .success)
+            }
+            
+            // 如果 AX 注入失败（比如目标应用不支持），则降级使用模拟键盘 Cmd+V
+            if !success {
+                self.simulateCmdV()
             }
         }
     }

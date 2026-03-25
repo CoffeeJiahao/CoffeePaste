@@ -49,8 +49,23 @@ class ClipboardMonitor {
         // 否则检查是否是文本
         guard let text = pb.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        // 去重：和最近一条一样就跳过
-        if latest?.content == text, latest?.type != "image" { return }
+        // 去重逻辑
+        if text.count < 1024 {
+            // 全量去重：查找是否存在内容相同的项（1KB 以内）
+            let predicate = #Predicate<ClipboardItem> { item in
+                item.content == text && item.type == "text"
+            }
+            let descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
+            if let existingItems = try? modelContext.fetch(descriptor), let existing = existingItems.first {
+                // 如果已存在，更新其创建时间以将其移动到顶部
+                existing.createdAt = Date()
+                try? modelContext.save()
+                return
+            }
+        } else {
+            // 大文本去重：仅对比最近一条，避免大文本全表扫描
+            if latest?.content == text, latest?.type == "text" { return }
+        }
 
         modelContext.insert(ClipboardItem(content: text, type: "text"))
         try? modelContext.save()
