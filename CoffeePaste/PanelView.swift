@@ -100,7 +100,14 @@ struct PanelView: View {
         }
         .frame(maxWidth: .infinity)
         .onReceive(NotificationCenter.default.publisher(for: .showPanel)) { _ in
-            isSearchFocused = true
+            search = "" // 每次打开清空搜索
+            // 确保窗口是 KeyWindow 之后再聚焦
+            DispatchQueue.main.async {
+                isSearchFocused = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isSearchFocused = true
+                }
+            }
         }
     }
 }
@@ -114,9 +121,27 @@ struct ClipCard: View {
     @State private var hovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
+            // 顶部功能栏
+            HStack {
+                Spacer()
+                if index < 9 {
+                    Text("⌘\(index + 1)")
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.2))
+                        .foregroundColor(.accentColor)
+                        .cornerRadius(4)
+                        .opacity(0.8)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
             // 内容预览
-            ZStack(alignment: .topTrailing) {
+            ZStack {
                 if item.type == "image", let data = item.imageData, let nsImage = NSImage(data: data) {
                     Image(nsImage: nsImage)
                         .resizable()
@@ -131,18 +156,8 @@ struct ClipCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .foregroundColor(.primary)
                 }
-                
-                if index < 9 {
-                    Text("⌘\(index + 1)")
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.2))
-                        .foregroundColor(.accentColor)
-                        .cornerRadius(4)
-                        .opacity(0.8)
-                }
             }
+            .padding(.horizontal, 12)
 
             Spacer(minLength: 0)
 
@@ -162,8 +177,10 @@ struct ClipCard: View {
                     .transition(.opacity)
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+            .padding(.top, 6)
         }
-        .padding(12)
         .frame(width: 160, height: 130)
         .background(
             RoundedRectangle(cornerRadius: 10)

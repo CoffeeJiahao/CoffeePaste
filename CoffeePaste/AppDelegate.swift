@@ -25,33 +25,23 @@ struct AnimatedPanelContainer: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            // 半透明背景（可选，点击关闭）
-            if panelState.isVisible {
-                Color.black.opacity(0.001) // 几乎透明，仅用于捕获点击
-                    .onTapGesture { onDismiss() }
-                    .transition(.opacity)
-            }
+            // 半透明背景
+            Color.black.opacity(0.001)
+                .onTapGesture { onDismiss() }
+                .opacity(panelState.isVisible ? 1 : 0)
             
-            // 主面板内容
-            if panelState.isVisible {
-                PanelView(
-                    onSelect: onSelect,
-                    onDismiss: onDismiss
-                )
-                .frame(height: 220)
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .bottom)
-                            .combined(with: .opacity),
-                        removal: .move(edge: .bottom)
-                            .combined(with: .opacity)
-                    )
-                )
-            }
+            // 主面板内容：保持常驻以维持 SwiftData 查询，仅改变位移和透明度
+            PanelView(
+                onSelect: onSelect,
+                onDismiss: onDismiss
+            )
+            .frame(height: 220)
+            .offset(y: panelState.isVisible ? 0 : 220)
+            .opacity(panelState.isVisible ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .animation(
-            .spring(duration: 0.32, bounce: 0.08), // 带微弱弹性的弹簧动画
+            .spring(duration: 0.28, bounce: 0.05), // 稍微缩短时长提升响应感
             value: panelState.isVisible
         )
     }
@@ -177,15 +167,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         previousApp = NSWorkspace.shared.frontmostApplication
         
-        // 确保窗口位置跟随当前主屏幕（多显示器支持）
+        // 只有在屏幕变化或首次显示时才调整 Frame，减少 WindowServer 调用
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let rect = NSRect(x: screen.frame.minX, y: screen.frame.minY,
                           width: screen.frame.width, height: panelHeight)
-        panel.setFrame(rect, display: false)
         
-        // 先显示窗口（此时 SwiftUI 内容还没出来，因为 isVisible=false）
+        if panel.frame != rect {
+            panel.setFrame(rect, display: false)
+        }
+        
         panel.orderFront(nil)
         panel.makeKey()
+        
+        // 强制 NSHostingView 成为第一响应者，否则 SwiftUI 内部 FocusState 无法响应
+        if let contentView = panel.contentView {
+            panel.makeFirstResponder(contentView)
+        }
         
         // 触发 SwiftUI 动画
         isPanelShowing = true
@@ -201,8 +198,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 触发 SwiftUI 收起动画
         isPanelShowing = false
         
-        // 动画结束后隐藏窗口（匹配动画时长）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+        // 动画结束后隐藏窗口（匹配动画时长 0.28s，多留 0.02s 冗余）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             guard let self = self, !self.isPanelShowing else { return }
             self.panelWindow?.orderOut(nil)
         }
