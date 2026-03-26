@@ -17,17 +17,24 @@ struct PanelView: View {
     @FocusState private var isNewGroupFocused: Bool
     @State private var groupToDelete: ClipGroup? = nil
     @State private var showDeleteAlert = false
+    @State private var scrollPosition: UUID?
 
     let onSelect: (ClipboardItem) -> Void
     let onDismiss: () -> Void
 
     private var filtered: [ClipboardItem] {
-        items.prefix(maxDisplayCount).filter { item in
+        let result = items.prefix(maxDisplayCount)
+        return result.filter { item in
             let matchesSearch = search.isEmpty || item.content.localizedCaseInsensitiveContains(search)
             let matchesType = !showOnlyImages || item.type == "image"
             let matchesGroup = selectedGroup == nil || item.group == selectedGroup
             return matchesSearch && matchesType && matchesGroup
         }
+    }
+    
+    private var firstVisibleIndex: Int {
+        guard let position = scrollPosition else { return 0 }
+        return filtered.firstIndex(where: { $0.id == position }) ?? 0
     }
 
     var body: some View {
@@ -200,12 +207,17 @@ struct PanelView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             LazyHStack(spacing: 10) {
                                 ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
-                                    ClipCard(item: item, index: index, groups: groups) {
-                                        onSelect(item)
-                                    } onDelete: {
-                                        modelContext.delete(item)
-                                        try? modelContext.save()
-                                    }
+                                    ClipCard(
+                                        item: item,
+                                        displayIndex: index - firstVisibleIndex,
+                                        groups: groups,
+                                        onSelect: { onSelect(item) },
+                                        onDelete: {
+                                            modelContext.delete(item)
+                                            try? modelContext.save()
+                                        }
+                                    )
+                                    .id(item.id)
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -214,6 +226,7 @@ struct PanelView: View {
                         }
                         .scrollTargetBehavior(.viewAligned)
                         .scrollIndicators(.hidden)
+                        .scrollPosition(id: $scrollPosition)
                     }
                 }
                 .frame(height: 154)

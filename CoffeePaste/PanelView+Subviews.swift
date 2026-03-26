@@ -1,6 +1,27 @@
 import SwiftUI
 import SwiftData
 
+@Observable
+final class ShortcutState {
+    static let shared = ShortcutState()
+    var isCommandPressed = false
+    private var monitor: Any?
+    
+    func startMonitoring() {
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            self.isCommandPressed = event.modifierFlags.contains(.command)
+            return event
+        }
+    }
+    
+    func stopMonitoring() {
+        if let monitor = monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+}
+
 // MARK: - 分组按钮
 struct GroupButton: View {
     let title: String
@@ -24,14 +45,16 @@ struct GroupButton: View {
 // MARK: - 单张卡片
 struct ClipCard: View {
     let item: ClipboardItem
-    let index: Int
+    let displayIndex: Int
     let groups: [ClipGroup]
-    let onTap: () -> Void
+    let onSelect: () -> Void
     let onDelete: () -> Void
     @State private var hovered = false
     @State private var decodedImage: Image? = nil
     @State private var isAnimating = false
     @Environment(\.modelContext) private var modelContext
+    
+    @State private var shortcutState = ShortcutState.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -56,7 +79,7 @@ struct ClipCard: View {
         .scaleEffect(hovered ? 1.04 : 1.0)
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: hovered)
         .onHover { hovered = $0 }
-        .onTapGesture { onTap() }
+        .onTapGesture { onSelect() }
         .task(id: item.id) {
             await loadImageIfNeeded()
         }
@@ -84,11 +107,11 @@ struct ClipCard: View {
         }
         .background(
             Group {
-                if index < 9 {
+                if displayIndex >= 0 && displayIndex < 9 {
                     Button("") {
-                        onTap()
+                        onSelect()
                     }
-                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                    .keyboardShortcut(KeyEquivalent(Character("\(displayIndex + 1)")), modifiers: .command)
                     .opacity(0)
                 }
             }
@@ -103,8 +126,8 @@ struct ClipCard: View {
             
             Spacer()
             
-            if index < 9 {
-                Text("⌘\(index + 1)")
+            if shortcutState.isCommandPressed && displayIndex >= 0 && displayIndex < 9 {
+                Text("⌘\(displayIndex + 1)")
                     .font(.system(size: 9, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -112,11 +135,13 @@ struct ClipCard: View {
                     .foregroundColor(.accentColor)
                     .cornerRadius(4)
                     .opacity(0.8)
+                    .transition(.opacity)
             }
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 4)
+        .animation(.easeInOut(duration: 0.1), value: shortcutState.isCommandPressed)
     }
     
     private func formatTime(_ date: Date) -> String {

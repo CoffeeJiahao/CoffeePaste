@@ -28,13 +28,12 @@ struct AnimatedPanelContainer: View {
             Color.black.opacity(0.001)
                 .onTapGesture { onDismiss() }
             
-            if panelState.isVisible {
-                PanelView(
-                    onSelect: onSelect,
-                    onDismiss: onDismiss
-                )
-                .frame(height: 220)
-            }
+            PanelView(
+                onSelect: onSelect,
+                onDismiss: onDismiss
+            )
+            .frame(height: 220)
+            .opacity(panelState.isVisible ? 1 : 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
@@ -80,6 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         setupPanel()
         setupHotkey()
+        ShortcutState.shared.startMonitoring()
         
         NotificationCenter.default.addObserver(
             self,
