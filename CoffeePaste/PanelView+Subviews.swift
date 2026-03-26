@@ -8,8 +8,9 @@ final class ShortcutState {
     private var monitor: Any?
     
     func startMonitoring() {
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-            self.isCommandPressed = event.modifierFlags.contains(.command)
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.isCommandPressed = event.modifierFlags.contains(.command)
             return event
         }
     }
@@ -45,7 +46,7 @@ struct GroupButton: View {
 // MARK: - 单张卡片
 struct ClipCard: View {
     let item: ClipboardItem
-    let displayIndex: Int
+    let visibleIndex: Int
     let groups: [ClipGroup]
     let onSelect: () -> Void
     let onDelete: () -> Void
@@ -53,8 +54,6 @@ struct ClipCard: View {
     @State private var decodedImage: Image? = nil
     @State private var isAnimating = false
     @Environment(\.modelContext) private var modelContext
-    
-    @State private var shortcutState = ShortcutState.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -105,17 +104,6 @@ struct ClipCard: View {
                 }
             }
         }
-        .background(
-            Group {
-                if displayIndex >= 0 && displayIndex < 9 {
-                    Button("") {
-                        onSelect()
-                    }
-                    .keyboardShortcut(KeyEquivalent(Character("\(displayIndex + 1)")), modifiers: .command)
-                    .opacity(0)
-                }
-            }
-        )
     }
 
     private var topBar: some View {
@@ -126,8 +114,8 @@ struct ClipCard: View {
             
             Spacer()
             
-            if shortcutState.isCommandPressed && displayIndex >= 0 && displayIndex < 9 {
-                Text("⌘\(displayIndex + 1)")
+            if ShortcutState.shared.isCommandPressed && visibleIndex >= 0 && visibleIndex < 9 {
+                Text("⌘\(visibleIndex + 1)")
                     .font(.system(size: 9, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -135,13 +123,11 @@ struct ClipCard: View {
                     .foregroundColor(.accentColor)
                     .cornerRadius(4)
                     .opacity(0.8)
-                    .transition(.opacity)
             }
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 4)
-        .animation(.easeInOut(duration: 0.1), value: shortcutState.isCommandPressed)
     }
     
     private func formatTime(_ date: Date) -> String {

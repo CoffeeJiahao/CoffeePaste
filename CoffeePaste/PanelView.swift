@@ -2,6 +2,9 @@ import SwiftUI
 import SwiftData
 
 private let maxDisplayCount = 100
+private let cardWidth: CGFloat = 160
+private let cardSpacing: CGFloat = 10
+private let horizontalPadding: CGFloat = 20
 
 struct PanelView: View {
     @Query(sort: \ClipboardItem.createdAt, order: .reverse) private var items: [ClipboardItem]
@@ -17,7 +20,7 @@ struct PanelView: View {
     @FocusState private var isNewGroupFocused: Bool
     @State private var groupToDelete: ClipGroup? = nil
     @State private var showDeleteAlert = false
-    @State private var scrollPosition: UUID?
+    @State private var scrollOffset: CGFloat = 0
 
     let onSelect: (ClipboardItem) -> Void
     let onDismiss: () -> Void
@@ -33,8 +36,15 @@ struct PanelView: View {
     }
     
     private var firstVisibleIndex: Int {
-        guard let position = scrollPosition else { return 0 }
-        return filtered.firstIndex(where: { $0.id == position }) ?? 0
+        // threshold 表示卡片内容区域超出左侧边界的距离
+        // 当 scrollOffset <= horizontalPadding 时，第一个卡片完全可见，threshold <= 0
+        let threshold = scrollOffset - horizontalPadding
+        guard threshold > 0 else { return 0 }
+        
+        // 使用 ceil (向上取整) 确保只要第一个卡片哪怕被遮挡了 1 像素，
+        // 索引也会自动进位到下一个完全显示的卡片
+        let index = Int(ceil(threshold / (cardWidth + cardSpacing)))
+        return max(0, index)
     }
 
     var body: some View {
@@ -204,35 +214,76 @@ struct PanelView: View {
                             Spacer()
                         }
                     } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 10) {
-                                ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
-                                    ClipCard(
-                                        item: item,
-                                        displayIndex: index - firstVisibleIndex,
-                                        groups: groups,
-                                        onSelect: { onSelect(item) },
-                                        onDelete: {
-                                            modelContext.delete(item)
-                                            try? modelContext.save()
-                                        }
-                                    )
-                                    .id(item.id)
+                        ScrollViewReader { proxy in
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: cardSpacing) {
+                                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
+                                        ClipCard(
+                                            item: item,
+                                            visibleIndex: index - firstVisibleIndex,
+                                            groups: groups,
+                                            onSelect: { onSelect(item) },
+                                            onDelete: {
+                                                modelContext.delete(item)
+                                                try? modelContext.save()
+                                            }
+                                        )
+                                    }
                                 }
+                                .padding(.horizontal, horizontalPadding)
+                                .padding(.vertical, 12)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .scrollTargetLayout()
+                            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                                geometry.contentOffset.x
+                            } action: { oldValue, newValue in
+                                scrollOffset = newValue
+                            }
+                            .background(
+                                Group {
+                                    Button("") {
+                                        let targetIndex = max(0, firstVisibleIndex - 9)
+                                        if targetIndex < filtered.count {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                proxy.scrollTo(filtered[targetIndex].id, anchor: .leading)
+                                            }
+                                        }
+                                    }
+                                    .keyboardShortcut(.leftArrow, modifiers: .command)
+                                    .opacity(0)
+                                    
+                                    Button("") {
+                                        let targetIndex = min(filtered.count - 1, firstVisibleIndex + 9)
+                                        if targetIndex >= 0 && targetIndex < filtered.count {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                proxy.scrollTo(filtered[targetIndex].id, anchor: .leading)
+                                            }
+                                        }
+                                    }
+                                    .keyboardShortcut(.rightArrow, modifiers: .command)
+                                    .opacity(0)
+                                }
+                            )
                         }
-                        .scrollTargetBehavior(.viewAligned)
-                        .scrollIndicators(.hidden)
-                        .scrollPosition(id: $scrollPosition)
                     }
                 }
                 .frame(height: 154)
             }
         }
         .frame(maxWidth: .infinity)
+        .background(
+            Group {
+                ForEach(0..<9, id: \.self) { i in
+                    Button("") {
+                        let targetIndex = firstVisibleIndex + i
+                        if targetIndex < filtered.count {
+                            onSelect(filtered[targetIndex])
+                        }
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
+                    .opacity(0)
+                }
+            }
+        )
         .onReceive(NotificationCenter.default.publisher(for: .showPanel)) { _ in
             search = "" // 每次打开清空搜索
 
