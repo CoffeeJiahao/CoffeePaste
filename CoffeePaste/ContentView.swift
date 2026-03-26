@@ -73,8 +73,6 @@ struct ItemRow: View {
                 Text(item.content)
                     .lineLimit(2)
                     .font(.system(size: 13))
-                Text(item.createdAt, style: .relative)
-                    .font(.caption).foregroundColor(.secondary)
             }
             Spacer()
             if hovered {

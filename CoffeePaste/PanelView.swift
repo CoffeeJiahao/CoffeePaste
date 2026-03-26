@@ -30,7 +30,9 @@ struct PanelView: View {
 
     var body: some View {
         ZStack {
-            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+            Color.clear
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // 搜索栏
@@ -38,9 +40,12 @@ struct PanelView: View {
                     // 分组操作按钮
                     HStack(spacing: 4) {
                         Button {
-                            isAddingGroup = true
-                            newGroupName = ""
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isAddingGroup = true
+                                newGroupName = ""
+                            }
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .seconds(0.1))
                                 isNewGroupFocused = true
                             }
                         } label: {
@@ -142,7 +147,11 @@ struct PanelView: View {
                             .font(.system(size: 14))
                             .focused($isSearchFocused)
                         if !search.isEmpty {
-                            Button { search = "" } label: {
+                            Button { 
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    search = "" 
+                                }
+                            } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.secondary)
                             }.buttonStyle(.plain)
@@ -182,19 +191,22 @@ struct PanelView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
+                        .scrollTargetLayout()
                     }
+                    .scrollTargetBehavior(.viewAligned) // macOS 14+ 优化滚动停靠
+                    .scrollIndicators(.hidden)
                 }
             }
         }
         .frame(maxWidth: .infinity)
         .onReceive(NotificationCenter.default.publisher(for: .showPanel)) { _ in
             search = "" // 每次打开清空搜索
+
             // 确保窗口是 KeyWindow 之后再聚焦
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 isSearchFocused = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isSearchFocused = true
-                }
+                try? await Task.sleep(for: .seconds(0.1))
+                isSearchFocused = true
             }
         }
         .alert("删除分组", isPresented: $showDeleteAlert, presenting: groupToDelete) { group in
@@ -215,163 +227,4 @@ struct PanelView: View {
             Text("分组 \"\(group.name)\" 中还有记录，确定要删除吗？（记录不会被删除，仅移除分组信息）")
         }
     }
-}
-
-// MARK: - 分组按钮
-struct GroupButton: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(isSelected ? Color.accentColor : Color.primary.opacity(0.05))
-                .foregroundColor(isSelected ? .white : .primary)
-                .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - 单张卡片
-struct ClipCard: View {
-    let item: ClipboardItem
-    let index: Int
-    let groups: [ClipGroup]
-    let onTap: () -> Void
-    let onDelete: () -> Void
-    @State private var hovered = false
-    @Environment(\.modelContext) private var modelContext
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 顶部功能栏
-            HStack {
-                Spacer()
-                if index < 9 {
-                    Text("⌘\(index + 1)")
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.2))
-                        .foregroundColor(.accentColor)
-                        .cornerRadius(4)
-                        .opacity(0.8)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
-
-            // 内容预览
-            ZStack {
-                if item.type == "image", let data = item.imageData, let nsImage = NSImage(data: data) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black.opacity(0.05))
-                        .cornerRadius(6)
-                } else {
-                    Text(item.content)
-                        .font(.system(size: 12))
-                        .lineLimit(5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .foregroundColor(.primary)
-                }
-            }
-            .padding(.horizontal, 12)
-
-            Spacer(minLength: 0)
-
-            // 底部时间 + 删除
-            HStack {
-                Text(item.createdAt, style: .relative)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                Spacer()
-                if hovered {
-                    Button(action: onDelete) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
-            .padding(.top, 6)
-        }
-        .frame(width: 160, height: 130)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(hovered
-                      ? Color.accentColor.opacity(0.18)
-                      : Color(NSColor.windowBackgroundColor).opacity(0.85))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(hovered ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.08),
-                        lineWidth: 1.5)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
-        .scaleEffect(hovered ? 1.04 : 1.0)
-        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: hovered)
-        .onHover { hovered = $0 }
-        .onTapGesture { onTap() }
-        .contextMenu {
-            Menu("添加到分组") {
-                if item.group != nil {
-                    Button("移除分组") {
-                        item.group = nil
-                        try? modelContext.save()
-                    }
-                    Divider()
-                }
-                
-                if groups.isEmpty {
-                    Text("无可用分组")
-                } else {
-                    ForEach(groups) { group in
-                        Button(group.name) {
-                            item.group = group
-                            try? modelContext.save()
-                        }
-                    }
-                }
-            }
-        }
-        .background(
-            Group {
-                if index < 9 {
-                    Button("") {
-                        onTap()
-                    }
-                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                    .opacity(0)
-                }
-            }
-        )
-    }
-}
-
-// MARK: - 毛玻璃
-struct VisualEffectBlur: NSViewRepresentable {
-    var material: NSVisualEffectView.Material
-    var blendingMode: NSVisualEffectView.BlendingMode
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let v = NSVisualEffectView()
-        v.material = material
-        v.blendingMode = blendingMode
-        v.state = .active
-        return v
-    }
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }

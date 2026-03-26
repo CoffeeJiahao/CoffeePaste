@@ -1,8 +1,9 @@
 import AppKit
 import SwiftData
 
-class ClipboardMonitor {
-    private var timer: Timer?
+@MainActor
+final class ClipboardMonitor {
+    private var task: Task<Void, Never>?
     private var lastChangeCount: Int
     private let modelContext: ModelContext
     
@@ -21,9 +22,18 @@ class ClipboardMonitor {
     }
 
     func start() {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.check()
+        task?.cancel()
+        task = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(0.5))
+                self?.check()
+            }
         }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
     }
 
     private func check() {

@@ -2,7 +2,7 @@ import SwiftData
 import Foundation
 
 @Model
-class ClipGroup {
+final class ClipGroup {
     var id: UUID
     var name: String
     var createdAt: Date

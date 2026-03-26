@@ -6,7 +6,7 @@ import IOKit.hid
 
 // MARK: - 面板状态管理（全局 Observable）
 @Observable
-class PanelState {
+final class PanelState {
     var isVisible: Bool = false
     var searchText: String = ""
 }
@@ -72,9 +72,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         
         NSApp.setActivationPolicy(.accessory)
-        container = try! ModelContainer(for: ClipboardItem.self, ClipGroup.self)
-        monitor = ClipboardMonitor(modelContext: ModelContext(container))
-        monitor.start()
+        
+        do {
+            container = try ModelContainer(for: ClipboardItem.self, ClipGroup.self)
+            monitor = ClipboardMonitor(modelContext: ModelContext(container))
+            monitor.start()
+        } catch {
+            print("Failed to initialize SwiftData ModelContainer: \(error)")
+            // 降级为内存数据库防止崩溃
+            let config = ModelConfiguration(isStoredInMemoryOnly: true)
+            container = try? ModelContainer(for: ClipboardItem.self, ClipGroup.self, configurations: config)
+            monitor = ClipboardMonitor(modelContext: ModelContext(container))
+            monitor.start()
+        }
         
         setupPanel()
         setupHotkey()
@@ -143,7 +153,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         InstallEventHandler(
             GetApplicationEventTarget(),
             { _, _, _ in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     AppDelegate.shared?.togglePanel()
                 }
                 return noErr
@@ -199,7 +209,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         isPanelShowing = false
         
         // 动画结束后隐藏窗口（匹配动画时长 0.28s，多留 0.02s 冗余）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(0.3))
             guard let self = self, !self.isPanelShowing else { return }
             self.panelWindow?.orderOut(nil)
         }
@@ -217,34 +228,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         previousApp?.activate()
         
         // 4. 动画结束后隐藏窗口（常驻逻辑保持不变）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(0.3))
             guard let self = self, !self.isPanelShowing else { return }
             self.panelWindow?.orderOut(nil)
         }
         
         // 5. 智能轮询焦点切换情况
-        let startTime = Date()
-        func waitForFocusAndPaste() {
-            let systemWide = AXUIElementCreateSystemWide()
-            var focusedElement: AnyObject?
-            let result = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedElement)
-            
-            var focusedPid: pid_t = 0
-            if result == .success, let element = focusedElement {
-                AXUIElementGetPid(element as! AXUIElement, &focusedPid)
+        Task { @MainActor in
+            let startTime = Date()
+            while Date().timeIntervalSince(startTime) <= 0.2 {
+                let systemWide = AXUIElementCreateSystemWide()
+                var focusedElement: AnyObject?
+                let result = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedElement)
+                
+                var focusedPid: pid_t = 0
+                if result == .success, let element = focusedElement {
+                    AXUIElementGetPid(element as! AXUIElement, &focusedPid)
+                }
+                
+                let myPid = ProcessInfo.processInfo.processIdentifier
+                if (focusedPid != 0 && focusedPid != myPid) {
+                    self.performActualPaste(item, targetElement: focusedElement)
+                    return
+                }
+                try? await Task.sleep(for: .seconds(0.01))
             }
-            
-            let myPid = ProcessInfo.processInfo.processIdentifier
-            
-            // 只要焦点不在本应用，或者已经重试了 200ms（防止死循环），就开始粘贴
-            if (focusedPid != 0 && focusedPid != myPid) || Date().timeIntervalSince(startTime) > 0.2 {
-                self.performActualPaste(item, targetElement: focusedElement)
-            } else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: waitForFocusAndPaste)
-            }
+            // 超时后强制尝试粘贴
+            self.performActualPaste(item, targetElement: nil)
         }
-        
-        waitForFocusAndPaste()
     }
     
     private func performActualPaste(_ item: ClipboardItem, targetElement: AnyObject?) {
@@ -288,7 +300,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - 失焦处理
     @objc func panelResignedKey() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(0.05))
             guard let self = self, self.isPanelShowing else { return }
             if self.panelWindow?.isKeyWindow == false {
                 self.hidePanel()
