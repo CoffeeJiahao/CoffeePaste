@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Generated with Swift 6 + macOS 15 target build script
+
+set -e # 遇到错误立即停止
+
+# 1. 切换到脚本所在目录
+cd "$(dirname "$0")"
+
+# 2. 定义变量
+PROJECT_NAME="CoffeePaste"
+SCHEME_NAME="CoffeePaste"
+BUILD_DIR="./build"
+
+echo "🚀 开始编译 $PROJECT_NAME (Release)..."
+
+# 3. 清理并编译
+# 使用 xcodebuild 命令行工具进行编译，直接输出到 ./build
+xcodebuild -project "${PROJECT_NAME}.xcodeproj" \
+    -scheme "$SCHEME_NAME" \
+    -configuration Release \
+    -derivedDataPath "$BUILD_DIR" \
+    clean build
+
+echo "✅ 编译完成！"
+
+# 4. 找到生成的 .app (在 build/Build/Products/Release 下)
+APP_PATH=$(find "$BUILD_DIR" -name "${PROJECT_NAME}.app" -type d | grep "Release" | head -n 1)
+
+if [ -z "$APP_PATH" ]; then
+    echo "❌ 错误: 找不到生成的 .app 文件"
+    exit 1
+fi
+
+echo "📦 生成路径: $APP_PATH"
+
+# 5. 更新 install.sh 里的 cp 路径，让它指向这个确定的位置
+INSTALL_SH="install.sh"
+if [ -f "$INSTALL_SH" ]; then
+    echo "Updating $INSTALL_SH..."
+    # 替换为相对路径：build/Build/Products/Release/CoffeePaste.app
+    RELATIVE_APP_PATH="build/Build/Products/Release/${PROJECT_NAME}.app"
+    sed -i '' "s|cp -r .* '/Applications/'|cp -r '$RELATIVE_APP_PATH' '/Applications/'|" "$INSTALL_SH"
+    echo "✨ $INSTALL_SH 已更新为确定路径。"
+fi
+
+echo "🎉 准备就绪！现在你可以运行 ./install.sh 进行安装了。"

@@ -51,6 +51,7 @@ struct ClipCard: View {
     let onSelect: () -> Void
     let onDelete: () -> Void
     @State private var hovered = false
+    @State private var deleteHovered = false
     @State private var decodedImage: Image? = nil
     @State private var isAnimating = false
     @Environment(\.modelContext) private var modelContext
@@ -65,17 +66,14 @@ struct ClipCard: View {
         .frame(width: 160, height: 130)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(hovered
-                      ? Color.accentColor.opacity(0.18)
-                      : Color(NSColor.windowBackgroundColor).opacity(0.85))
+                .fill(Color(NSColor.windowBackgroundColor).opacity(0.85))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(hovered ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.08),
+                .stroke(deleteHovered ? Color.red.opacity(0.6) : (hovered ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.08)),
                         lineWidth: 1.5)
         )
         .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
-        .scaleEffect(hovered ? 1.04 : 1.0)
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: hovered)
         .onHover { hovered = $0 }
         .onTapGesture { onSelect() }
@@ -192,11 +190,13 @@ struct ClipCard: View {
             if hovered {
                 Button(action: onDelete) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 14))
+                        .foregroundColor(deleteHovered ? .red : .secondary)
                 }
                 .buttonStyle(.plain)
+                .onHover { deleteHovered = $0 }
                 .transition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: deleteHovered)
             }
         }
         .padding(.horizontal, 12)
