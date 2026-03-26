@@ -25,25 +25,18 @@ struct AnimatedPanelContainer: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            // 半透明背景
             Color.black.opacity(0.001)
                 .onTapGesture { onDismiss() }
-                .opacity(panelState.isVisible ? 1 : 0)
             
-            // 主面板内容：保持常驻以维持 SwiftData 查询，仅改变位移和透明度
-            PanelView(
-                onSelect: onSelect,
-                onDismiss: onDismiss
-            )
-            .frame(height: 220)
-            .offset(y: panelState.isVisible ? 0 : 220)
-            .opacity(panelState.isVisible ? 1 : 0)
+            if panelState.isVisible {
+                PanelView(
+                    onSelect: onSelect,
+                    onDismiss: onDismiss
+                )
+                .frame(height: 220)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .animation(
-            .spring(duration: 0.28, bounce: 0.05), // 稍微缩短时长提升响应感
-            value: panelState.isVisible
-        )
     }
 }
 
@@ -79,7 +72,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             monitor.start()
         } catch {
             print("Failed to initialize SwiftData ModelContainer: \(error)")
-            // 降级为内存数据库防止崩溃
             let config = ModelConfiguration(isStoredInMemoryOnly: true)
             container = try? ModelContainer(for: ClipboardItem.self, ClipGroup.self, configurations: config)
             monitor = ClipboardMonitor(modelContext: ModelContext(container))
@@ -88,6 +80,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         setupPanel()
         setupHotkey()
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidBecomeKey),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func windowDidBecomeKey(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        if window != panelWindow && window.styleMask.contains(.closable) {
+            window.level = .floating
+        }
     }
     
     // MARK: - 面板初始化（一次性，窗口位置固定不变）

@@ -97,7 +97,12 @@ struct ClipCard: View {
 
     private var topBar: some View {
         HStack {
+            Text(formatTime(item.createdAt))
+                .font(.system(size: 9))
+                .foregroundColor(.secondary.opacity(0.7))
+            
             Spacer()
+            
             if index < 9 {
                 Text("⌘\(index + 1)")
                     .font(.system(size: 9, weight: .bold))
@@ -112,6 +117,26 @@ struct ClipCard: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 4)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(date) {
+            formatter.dateFormat = "HH:mm"
+        } else if calendar.isDateInYesterday(date) {
+            return "昨天"
+        } else {
+            let daysAgo = calendar.dateComponents([.day], from: date, to: Date()).day ?? 0
+            if daysAgo < 7 {
+                formatter.dateFormat = "EEEE"
+                formatter.locale = Locale(identifier: "zh_CN")
+            } else {
+                formatter.dateFormat = "MM/dd"
+            }
+        }
+        return formatter.string(from: date)
     }
 
     @ViewBuilder
@@ -170,16 +195,20 @@ struct ClipCard: View {
 
     @MainActor
     private func loadImageIfNeeded() async {
-        if item.type == "image", let data = item.imageData {
-            let image: Image? = await Task.detached(priority: .userInitiated) {
-                if let nsImage = NSImage(data: data) {
-                    return Image(nsImage: nsImage)
-                }
-                return nil as Image?
-            }.value
-            withAnimation(.easeOut(duration: 0.2)) {
-                self.decodedImage = image
+        guard item.type == "image" else { return }
+        
+        let dataToUse = item.thumbnailData ?? item.imageData
+        guard let data = dataToUse else { return }
+        
+        let image: Image? = await Task.detached(priority: .userInitiated) {
+            if let nsImage = NSImage(data: data) {
+                return Image(nsImage: nsImage)
             }
+            return nil as Image?
+        }.value
+        
+        withAnimation(.easeOut(duration: 0.2)) {
+            self.decodedImage = image
         }
     }
 }

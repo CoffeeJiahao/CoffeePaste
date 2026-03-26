@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+
+private let maxDisplayCount = 100
+
 struct PanelView: View {
     @Query(sort: \ClipboardItem.createdAt, order: .reverse) private var items: [ClipboardItem]
     @Query(sort: \ClipGroup.createdAt) private var groups: [ClipGroup]
@@ -8,7 +11,6 @@ struct PanelView: View {
     @State private var showOnlyImages = false
     @FocusState private var isSearchFocused: Bool
     
-    // 分组状态
     @State private var selectedGroup: ClipGroup? = nil
     @State private var isAddingGroup = false
     @State private var newGroupName = ""
@@ -19,8 +21,8 @@ struct PanelView: View {
     let onSelect: (ClipboardItem) -> Void
     let onDismiss: () -> Void
 
-    var filtered: [ClipboardItem] {
-        items.filter { item in
+    private var filtered: [ClipboardItem] {
+        items.prefix(maxDisplayCount).filter { item in
             let matchesSearch = search.isEmpty || item.content.localizedCaseInsensitiveContains(search)
             let matchesType = !showOnlyImages || item.type == "image"
             let matchesGroup = selectedGroup == nil || item.group == selectedGroup
@@ -35,9 +37,7 @@ struct PanelView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // 搜索栏
                 HStack(spacing: 12) {
-                    // 分组操作按钮
                     HStack(spacing: 4) {
                         Button {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -74,7 +74,6 @@ struct PanelView: View {
                         .help("删除当前分组")
                     }
                     
-                    // 分组列表
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             GroupButton(title: "全部", isSelected: selectedGroup == nil) {
@@ -118,7 +117,6 @@ struct PanelView: View {
                     
                     Divider().frame(height: 16)
 
-                    // 仅看图片按钮
                     Button {
                         showOnlyImages.toggle()
                     } label: {
@@ -159,7 +157,29 @@ struct PanelView: View {
                     }
                     
                     Spacer()
+                    
                     Text("Ctrl+V 关闭").font(.caption2).foregroundColor(.secondary).opacity(0.5)
+                    
+                    Menu {
+                        SettingsLink {
+                            Text("设置...")
+                        }
+                        .keyboardShortcut(",", modifiers: .command)
+                        
+                        Divider()
+                        
+                        Button("退出 CoffeePaste") {
+                            NSApplication.shared.terminate(nil)
+                        }
+                        .keyboardShortcut("q", modifiers: .command)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 14)
@@ -167,35 +187,36 @@ struct PanelView: View {
 
                 Divider().opacity(0.3)
 
-                // 卡片横向列表
-                if filtered.isEmpty {
-                    HStack {
-                        Spacer()
-                        Label(search.isEmpty ? "还没有复制记录" : "没有匹配内容", systemImage: "tray")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 13))
-                        Spacer()
-                    }
-                    .padding(.vertical, 30)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 10) {
-                            ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
-                                ClipCard(item: item, index: index, groups: groups) {
-                                    onSelect(item)
-                                } onDelete: {
-                                    modelContext.delete(item)
-                                    try? modelContext.save()
+                Group {
+                    if filtered.isEmpty {
+                        HStack {
+                            Spacer()
+                            Label(search.isEmpty ? "还没有复制记录" : "没有匹配内容", systemImage: "tray")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 13))
+                            Spacer()
+                        }
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 10) {
+                                ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
+                                    ClipCard(item: item, index: index, groups: groups) {
+                                        onSelect(item)
+                                    } onDelete: {
+                                        modelContext.delete(item)
+                                        try? modelContext.save()
+                                    }
                                 }
                             }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .scrollTargetLayout()
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .scrollTargetLayout()
+                        .scrollTargetBehavior(.viewAligned)
+                        .scrollIndicators(.hidden)
                     }
-                    .scrollTargetBehavior(.viewAligned) // macOS 14+ 优化滚动停靠
-                    .scrollIndicators(.hidden)
                 }
+                .frame(height: 154)
             }
         }
         .frame(maxWidth: .infinity)

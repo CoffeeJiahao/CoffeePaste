@@ -19,16 +19,18 @@ final class ClipGroup {
 class ClipboardItem {
     var id: UUID
     var content: String
-    var type: String? // "text" or "image"
+    var type: String?
     @Attribute(.externalStorage) var imageData: Data?
+    @Attribute(.externalStorage) var thumbnailData: Data?
     var createdAt: Date
     var group: ClipGroup?
 
-    init(content: String, type: String? = "text", imageData: Data? = nil) {
+    init(content: String, type: String? = "text", imageData: Data? = nil, thumbnailData: Data? = nil) {
         self.id = UUID()
         self.content = content
         self.type = type
         self.imageData = imageData
+        self.thumbnailData = thumbnailData
         self.createdAt = Date()
     }
 }
