@@ -16,11 +16,14 @@ echo "🚀 开始编译 $PROJECT_NAME (Release)..."
 
 # 3. 清理并编译
 # 使用 xcodebuild 命令行工具进行编译，直接输出到 ./build
+mkdir -p "$BUILD_DIR"
 xcodebuild -project "${PROJECT_NAME}.xcodeproj" \
     -scheme "$SCHEME_NAME" \
     -configuration Release \
+    -destination 'generic/platform=macOS,name=Any Mac' \
+    ARCHS='arm64' \
     -derivedDataPath "$BUILD_DIR" \
-    clean build
+    clean build 2>&1 >"$BUILD_DIR/build.log"
 
 echo "✅ 编译完成！"
 
