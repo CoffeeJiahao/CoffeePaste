@@ -47,6 +47,7 @@ struct GroupButton: View {
 struct ClipCard: View {
     let item: ClipboardItem
     let visibleIndex: Int
+    let shouldLoadPreview: Bool
     let groups: [ClipGroup]
     let onSelect: () -> Void
     let onDelete: () -> Void
@@ -77,9 +78,10 @@ struct ClipCard: View {
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: hovered)
         .onHover { hovered = $0 }
         .onTapGesture { onSelect() }
-        .task(id: item.id) {
-            await loadImageIfNeeded()
+        .task(id: shouldLoadPreview) {
+            await updatePreviewState()
         }
+        .onDisappear { releasePreview() }
         .contextMenu {
             Menu("添加到分组") {
                 if item.group != nil {
@@ -207,10 +209,8 @@ struct ClipCard: View {
     @MainActor
     private func loadImageIfNeeded() async {
         guard item.type == "image" else { return }
-        
         let dataToUse = item.thumbnailData ?? item.imageData
         guard let data = dataToUse else { return }
-        
         let image: Image? = await Task.detached(priority: .userInitiated) {
             if let nsImage = NSImage(data: data) {
                 return Image(nsImage: nsImage)
@@ -221,6 +221,23 @@ struct ClipCard: View {
         withAnimation(.easeOut(duration: 0.2)) {
             self.decodedImage = image
         }
+    }
+
+    @MainActor
+    private func updatePreviewState() async {
+        guard item.type == "image" else { return }
+        guard shouldLoadPreview else {
+            releasePreview()
+            return
+        }
+        guard decodedImage == nil else { return }
+        await loadImageIfNeeded()
+    }
+
+    @MainActor
+    private func releasePreview() {
+        decodedImage = nil
+        isAnimating = false
     }
 }
 

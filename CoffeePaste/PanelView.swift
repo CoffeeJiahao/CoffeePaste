@@ -21,6 +21,7 @@ struct PanelView: View {
     @State private var groupToDelete: ClipGroup? = nil
     @State private var showDeleteAlert = false
     @State private var scrollOffset: CGFloat = 0
+    @State private var scrollViewportWidth: CGFloat = 0
 
     let onSelect: (ClipboardItem) -> Void
     let onDismiss: () -> Void
@@ -36,15 +37,22 @@ struct PanelView: View {
     }
     
     private var firstVisibleIndex: Int {
-        // threshold 表示卡片内容区域超出左侧边界的距离
-        // 当 scrollOffset <= horizontalPadding 时，第一个卡片完全可见，threshold <= 0
         let threshold = scrollOffset - horizontalPadding
         guard threshold > 0 else { return 0 }
-        
-        // 使用 ceil (向上取整) 确保只要第一个卡片哪怕被遮挡了 1 像素，
-        // 索引也会自动进位到下一个完全显示的卡片
         let index = Int(ceil(threshold / (cardWidth + cardSpacing)))
         return max(0, index)
+    }
+
+    private var fullyVisibleCardCount: Int {
+        let availableWidth = max(0, scrollViewportWidth - horizontalPadding * 2)
+        let count = Int((availableWidth + cardSpacing) / (cardWidth + cardSpacing))
+        return max(0, count)
+    }
+
+    private var visiblePreviewRange: Range<Int> {
+        let lowerBound = min(firstVisibleIndex, filtered.count)
+        let upperBound = min(filtered.count, lowerBound + fullyVisibleCardCount)
+        return lowerBound..<upperBound
     }
 
     var body: some View {
@@ -221,6 +229,7 @@ struct PanelView: View {
                                         ClipCard(
                                             item: item,
                                             visibleIndex: index - firstVisibleIndex,
+                                            shouldLoadPreview: visiblePreviewRange.contains(index),
                                             groups: groups,
                                             onSelect: { onSelect(item) },
                                             onDelete: {
@@ -232,6 +241,11 @@ struct PanelView: View {
                                 }
                                 .padding(.horizontal, horizontalPadding)
                                 .padding(.vertical, 12)
+                            }
+                            .onGeometryChange(for: CGFloat.self) { geometry in
+                                geometry.size.width
+                            } action: { _, newValue in
+                                scrollViewportWidth = newValue
                             }
                             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                                 geometry.contentOffset.x

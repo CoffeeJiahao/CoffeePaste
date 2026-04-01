@@ -67,7 +67,7 @@ final class ClipboardMonitor {
         if let tiffData = pb.data(forType: .tiff) ?? pb.data(forType: .png) {
             if latest?.type == "image", latest?.imageData == tiffData { return }
             
-            let thumbnail = Self.generateThumbnail(from: tiffData, maxSize: 320)
+            let thumbnail = Self.generateThumbnail(from: tiffData, maxSize: 240)
             let item = ClipboardItem(content: "[图片]", type: "image", imageData: tiffData, thumbnailData: thumbnail)
             modelContext.insert(item)
             try? modelContext.save()
