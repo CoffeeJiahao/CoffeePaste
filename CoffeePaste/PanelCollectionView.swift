@@ -561,14 +561,17 @@ struct PanelCollectionView: NSViewRepresentable {
         }
 
         private func notifyVisibleIndex() {
-            guard let collectionView else { return }
-            let firstIndex = collectionView
-                .indexPathsForVisibleItems()
-                .map(\.item)
-                .min() ?? 0
-            guard firstIndex != lastVisibleIndex else { return }
-            lastVisibleIndex = firstIndex
-            parent.onVisibleIndexChange(firstIndex)
+            guard let scrollView = self.scrollView else { return }
+            let offsetX = max(0, scrollView.contentView.bounds.origin.x)
+            let itemWidth = panelCardSize.width + panelCardSpacing
+            
+            // 使用 round 能够更准确地判断当前主要可见的是哪一个卡片
+            let firstIndex = Int(round(offsetX / itemWidth))
+            let clampedIndex = max(0, min(parent.items.count > 0 ? parent.items.count - 1 : 0, firstIndex))
+            
+            guard clampedIndex != lastVisibleIndex else { return }
+            lastVisibleIndex = clampedIndex
+            parent.onVisibleIndexChange(clampedIndex)
         }
 
         private func reconfigureVisibleItems() {
@@ -628,8 +631,8 @@ struct PanelCollectionView: NSViewRepresentable {
             }, completionHandler: { [weak self] in
                 guard let self = self else { return }
                 // 动画完成后更新我们自己的 lastVisibleIndex
-                let firstVisibleIndex = Int(floor(newOffset.x / (panelCardSize.width + panelCardSpacing)))
-                self.lastVisibleIndex = max(0, min(self.parent.items.count - 1, firstVisibleIndex))
+                let firstVisibleIndex = Int(round(newOffset.x / (panelCardSize.width + panelCardSpacing)))
+                self.lastVisibleIndex = max(0, min(self.parent.items.count > 0 ? self.parent.items.count - 1 : 0, firstVisibleIndex))
                 self.parent.onVisibleIndexChange(self.lastVisibleIndex)
             })
         }
