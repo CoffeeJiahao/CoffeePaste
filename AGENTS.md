@@ -12,7 +12,7 @@
 | 平台 | macOS 15 Sequoia+（最低部署目标） |
 | 架构 | **arm64 (Apple Silicon 专用)**，不再支持 x86_64 |
 | 语言 | Swift 6（开启完全并发检查） |
-| UI 框架 | SwiftUI（优先）/ AppKit (仅用于全局事件监听与窗口底层管理) |
+| UI 框架 | SwiftUI（优先）/ AppKit（允许用于窗口底层管理、全局事件监听，以及**性能关键滚动列表**如 `NSCollectionView`） |
 | 数据层 | SwiftData |
 | 包管理 | Swift Package Manager |
 
@@ -29,6 +29,7 @@
 ### SwiftUI 规范
 - **Observation 框架优先**：使用 `@Observable` 宏
 - 视图逻辑分离：复杂 View 必须提取子 View 或配套 ViewModel，单个文件控制在 **200 行**内
+  - 例外：为性能关键 AppKit bridge（如 `NSCollectionView` + `NSViewRepresentable`）可适度超过 200 行，但必须保持职责单一、可复用、无业务逻辑堆叠
 - 状态管理：优先使用 `@State` 和 `@Bindable`，减少 `@EnvironmentObject` 的滥用
 
 ---
@@ -58,13 +59,17 @@
 
 ```
 CoffeePaste/
-├── App/                  # 程序入口与生命周期 (App/AppDelegate)
-├── Features/             # 按功能模块划分 (Home/Settings/Groups)
-├── Models/               # SwiftData @Model 定义
-├── Services/             # 核心服务逻辑 (ClipboardMonitor/ShortcutState)
-├── Utils/                # 通用组件与扩展
-├── Assets.xcassets       # 静态资源与颜色集
-└── Tests/                # Swift Testing 单元测试
+├── CoffeePaste/          # 目前为平铺结构（逐步演进到模块化目录）
+│  ├── AppDelegate.swift
+│  ├── CoffeePasteApp.swift
+│  ├── PanelView.swift
+│  ├── PanelCollectionView.swift   # 性能关键列表内核（NSCollectionView）
+│  ├── ClipboardMonitor.swift
+│  ├── ClipboardItem.swift
+│  ├── SettingsView.swift
+│  ├── ContentView.swift
+│  └── Assets.xcassets
+└── Tests/                # Swift Testing（当前可能尚未完善）
 ```
 
 ---
@@ -79,3 +84,7 @@ CoffeePaste/
 4. **拒绝庞大 View**：如果 View 逻辑过重，必须主动建议并执行重构
 5. **Swift Testing 优先**：新增业务逻辑时，同步生成对应的 `@Test`
 6. **Shell 脚本同步**：修改编译路径或架构时，同步更新 `build.sh` 和 `install.sh`
+
+### Shell 脚本约定
+- `build.sh` 只负责编译产物，**不应修改** `install.sh`（避免“构建脚本篡改安装脚本”造成不可预期行为）
+- `install.sh` 使用 `ditto` 复制 `.app`（比 `cp -r` 更稳，避免丢失 `Contents/MacOS`）

@@ -48,14 +48,4 @@ fi
 
 echo "📦 生成路径: $APP_PATH"
 
-# 5. 更新 install.sh 里的 cp 路径，让它指向这个确定的位置
-INSTALL_SH="install.sh"
-if [ -f "$INSTALL_SH" ]; then
-    echo "Updating $INSTALL_SH..."
-    # 替换为相对路径：build/Build/Products/Release/CoffeePaste.app
-    RELATIVE_APP_PATH="build/Build/Products/Release/${PROJECT_NAME}.app"
-    sed -i '' "s|cp -r .* '/Applications/'|cp -r '$RELATIVE_APP_PATH' '/Applications/'|" "$INSTALL_SH"
-    echo "✨ $INSTALL_SH 已更新为确定路径。"
-fi
-
 echo "🎉 准备就绪！现在你可以运行 ./install.sh 进行安装了。"

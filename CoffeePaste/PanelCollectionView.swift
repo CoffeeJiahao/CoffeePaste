@@ -319,6 +319,7 @@ struct PanelClipCardView: View {
     }
 }
 
+@MainActor
 private final class PanelCollectionViewItem: NSCollectionViewItem {
     static let identifier = NSUserInterfaceItemIdentifier("PanelCollectionViewItem")
 
@@ -426,6 +427,7 @@ private final class PanelCollectionViewItem: NSCollectionViewItem {
     }
 }
 
+@MainActor
 struct PanelCollectionView: NSViewRepresentable {
     let items: [PanelClipSnapshot]
     let groups: [PanelGroupSnapshot]
@@ -476,6 +478,7 @@ struct PanelCollectionView: NSViewRepresentable {
         context.coordinator.update(parent: self, scrollView: scrollView)
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate {
         private var parent: PanelCollectionView
         private weak var scrollView: NSScrollView?

@@ -59,6 +59,7 @@ actor ClipPreviewDecodeLimiter {
     }
 }
 
+@MainActor
 @Observable
 final class ShortcutState {
     static let shared = ShortcutState()
@@ -94,7 +95,7 @@ struct GroupButton: View {
 }
 
 // MARK: - 单张卡片
-struct ClipCard: View, Equatable {
+struct ClipCard: View {
     let item: ClipboardItem
     let shouldShowPreview: Bool
     let shortcutIndex: Int?
@@ -107,13 +108,6 @@ struct ClipCard: View, Equatable {
     @State private var isAnimating = false
     @State private var previewLoadTask: Task<Void, Never>? = nil
     @Environment(\.modelContext) private var modelContext
-
-    static func == (lhs: ClipCard, rhs: ClipCard) -> Bool {
-        lhs.item.id == rhs.item.id &&
-        lhs.shouldShowPreview == rhs.shouldShowPreview &&
-        lhs.shortcutIndex == rhs.shortcutIndex &&
-        lhs.groups.map(\.id) == rhs.groups.map(\.id)
-    }
 
     private func reportPreviewTask() {
         guard item.type == "image" else { return }

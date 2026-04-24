@@ -22,28 +22,16 @@ func debugReportScrollJankEvent(
     // Debug logging can easily destroy scroll performance; keep it opt-in.
     guard UserDefaults.standard.bool(forKey: "debugScrollJank") else { return }
 
-    struct Cache {
-        static var isInitialized = false
-        static var url: URL?
-    }
-
     let envPath = URL(fileURLWithPath: ".dbg/scroll-jank.env")
     let fallbackURL = "http://127.0.0.1:7777/event"
-
-    if !Cache.isInitialized {
-        Cache.isInitialized = true
-
-        var serverURL = fallbackURL
-        if let envContent = try? String(contentsOf: envPath),
-           let matchedLine = envContent
-            .split(separator: "\n")
-            .first(where: { $0.hasPrefix("DEBUG_SERVER_URL=") }) {
-            serverURL = String(matchedLine.dropFirst("DEBUG_SERVER_URL=".count))
-        }
-
-        Cache.url = URL(string: serverURL)
+    var serverURL = fallbackURL
+    if let envContent = try? String(contentsOf: envPath),
+       let matchedLine = envContent
+        .split(separator: "\n")
+        .first(where: { $0.hasPrefix("DEBUG_SERVER_URL=") }) {
+        serverURL = String(matchedLine.dropFirst("DEBUG_SERVER_URL=".count))
     }
-    guard let url = Cache.url else { return }
+    guard let url = URL(string: serverURL) else { return }
 
     let payload: [String: Any] = [
         "sessionId": "scroll-jank",
@@ -75,35 +63,23 @@ func debugReportImageScrollEvent(
 ) {
     guard UserDefaults.standard.bool(forKey: "debugImageScrollJank") else { return }
 
-    struct Cache {
-        static var isInitialized = false
-        static var url: URL?
-        static var sessionId = "image-scroll-jank"
-    }
-
     let envPath = URL(fileURLWithPath: ".dbg/image-scroll-jank.env")
     let fallbackURL = "http://127.0.0.1:7777/event"
-
-    if !Cache.isInitialized {
-        Cache.isInitialized = true
-
-        var serverURL = fallbackURL
-        if let envContent = try? String(contentsOf: envPath, encoding: .utf8) {
-            for line in envContent.split(separator: "\n") {
-                if line.hasPrefix("DEBUG_SERVER_URL=") {
-                    serverURL = String(line.dropFirst("DEBUG_SERVER_URL=".count))
-                } else if line.hasPrefix("DEBUG_SESSION_ID=") {
-                    Cache.sessionId = String(line.dropFirst("DEBUG_SESSION_ID=".count))
-                }
+    var serverURL = fallbackURL
+    var sessionID = "image-scroll-jank"
+    if let envContent = try? String(contentsOf: envPath, encoding: .utf8) {
+        for line in envContent.split(separator: "\n") {
+            if line.hasPrefix("DEBUG_SERVER_URL=") {
+                serverURL = String(line.dropFirst("DEBUG_SERVER_URL=".count))
+            } else if line.hasPrefix("DEBUG_SESSION_ID=") {
+                sessionID = String(line.dropFirst("DEBUG_SESSION_ID=".count))
             }
         }
-
-        Cache.url = URL(string: serverURL)
     }
-    guard let url = Cache.url else { return }
+    guard let url = URL(string: serverURL) else { return }
 
     let payload: [String: Any] = [
-        "sessionId": Cache.sessionId,
+        "sessionId": sessionID,
         "runId": "post-fix",
         "hypothesisId": hypothesisId,
         "location": location,

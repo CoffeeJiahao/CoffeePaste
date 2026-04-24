@@ -59,7 +59,8 @@ struct AnimatedPanelContainer: View {
 }
 
 // MARK: - AppDelegate
-class AppDelegate: NSObject, NSApplicationDelegate {
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
     static var shared: AppDelegate?
     var panelWindow: NSPanel?
     var monitor: ClipboardMonitor!
@@ -82,7 +83,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
         
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true]
+        // Avoid referencing kAXTrustedCheckOptionPrompt under strict concurrency.
+        let options = ["AXTrustedCheckOptionPrompt" as CFString: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
         IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         
