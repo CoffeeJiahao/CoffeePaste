@@ -22,6 +22,17 @@ xcodebuild -project "${PROJECT_NAME}.xcodeproj" \
     -configuration Release \
     -destination 'generic/platform=macOS,name=Any Mac' \
     ARCHS='arm64' \
+    ONLY_ACTIVE_ARCH=YES \
+    SWIFT_OPTIMIZATION_LEVEL='-O' \
+    SWIFT_COMPILATION_MODE=wholemodule \
+    GCC_OPTIMIZATION_LEVEL='3' \
+    LLVM_LTO=YES \
+    DEAD_CODE_STRIPPING=YES \
+    STRIP_INSTALLED_PRODUCT=YES \
+    COPY_PHASE_STRIP=YES \
+    SWIFT_COVERAGE_MAPPING=NO \
+    CLANG_ENABLE_CODE_COVERAGE=NO \
+    GCC_INSTRUMENT_PROGRAM_FLOW_ARCS=NO \
     -derivedDataPath "$BUILD_DIR" \
     clean build 2>&1 >"$BUILD_DIR/build.log"
 

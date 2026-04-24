@@ -67,7 +67,7 @@ final class ClipboardMonitor {
         if let tiffData = pb.data(forType: .tiff) ?? pb.data(forType: .png) {
             if latest?.type == "image", latest?.imageData == tiffData { return }
             
-            let thumbnail = Self.generateThumbnail(from: tiffData, maxSize: 240)
+            let thumbnail = Self.generateThumbnail(from: tiffData, maxSize: 128)
             let item = ClipboardItem(content: "[图片]", type: "image", imageData: tiffData, thumbnailData: thumbnail)
             modelContext.insert(item)
             try? modelContext.save()
@@ -101,11 +101,12 @@ final class ClipboardMonitor {
 
     private func trim() {
         if maxItems < Int.max {
-            var deleteDesc = FetchDescriptor<ClipboardItem>(
+            let deleteDesc = FetchDescriptor<ClipboardItem>(
                 sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
             )
-            deleteDesc.fetchOffset = maxItems
-            if let toDelete = try? modelContext.fetch(deleteDesc) {
+            if let allItems = try? modelContext.fetch(deleteDesc) {
+                let ungroupedItems = allItems.filter { $0.group == nil }
+                let toDelete = ungroupedItems.dropFirst(maxItems)
                 toDelete.forEach { modelContext.delete($0) }
             }
         }
@@ -116,7 +117,9 @@ final class ClipboardMonitor {
                 predicate: #Predicate { $0.createdAt < cutoffDate }
             )
             if let oldItems = try? modelContext.fetch(timeDesc) {
-                oldItems.forEach { modelContext.delete($0) }
+                oldItems
+                    .filter { $0.group == nil }
+                    .forEach { modelContext.delete($0) }
             }
         }
         
@@ -140,6 +143,22 @@ final class ClipboardMonitor {
         guard let tiffData = resizedImage.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiffData),
               let pngData = bitmap.representation(using: .png, properties: [:]) else { return nil }
+
+        // #region debug-point D:thumbnail-generated
+        debugReportImageScrollEvent(
+            hypothesisId: "D",
+            location: "ClipboardMonitor.swift:generateThumbnail",
+            message: "thumbnail generated",
+            data: [
+                "originalWidth": String(Int(originalSize.width)),
+                "originalHeight": String(Int(originalSize.height)),
+                "thumbnailWidth": String(Int(newSize.width)),
+                "thumbnailHeight": String(Int(newSize.height)),
+                "sourceBytes": String(data.count),
+                "thumbnailBytes": String(pngData.count)
+            ]
+        )
+        // #endregion
         
         return pngData
     }

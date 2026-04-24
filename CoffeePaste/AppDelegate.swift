@@ -15,6 +15,25 @@ final class PanelState {
 class CustomPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .flagsChanged {
+            let isPressed = event.modifierFlags.contains(.command)
+            ShortcutState.shared.isCommandPressed = isPressed
+            NotificationCenter.default.post(name: .commandModifierChanged, object: isPressed)
+        }
+
+        if event.type == .keyDown, event.keyCode == 48 {
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if !flags.contains(.command), !flags.contains(.control), !flags.contains(.option) {
+                let name: Notification.Name = flags.contains(.shift) ? .panelPageBackward : .panelPageForward
+                NotificationCenter.default.post(name: name, object: nil)
+                return
+            }
+        }
+
+        super.sendEvent(event)
+    }
 }
 
 // MARK: - 带动画的容器视图
@@ -54,6 +73,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isPanelShowing: Bool {
         get { panelState.isVisible }
         set { panelState.isVisible = newValue }
+    }
+
+    var isPanelCurrentlyShowing: Bool {
+        panelState.isVisible
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
