@@ -598,20 +598,40 @@ struct PanelCollectionView: NSViewRepresentable {
 
         private func performPage(_ direction: PanelPageDirection, in scrollView: NSScrollView) {
             guard let collectionView else { return }
-            let firstVisibleIndex = collectionView
-                .indexPathsForVisibleItems()
-                .map(\.item)
-                .min() ?? 0
-
+            
             let availableWidth = max(0, scrollView.contentView.bounds.width - panelHorizontalInset * 2)
             let visibleCount = max(1, Int((availableWidth + panelCardSpacing) / (panelCardSize.width + panelCardSpacing)))
-            let delta = direction == .forward ? visibleCount : -visibleCount
-            let targetIndex = max(0, min(parent.items.count - 1, firstVisibleIndex + delta))
-            let indexPath = IndexPath(item: targetIndex, section: 0)
-
-            collectionView.scrollToItems(at: [indexPath], scrollPosition: .leadingEdge)
-            lastVisibleIndex = targetIndex
-            parent.onVisibleIndexChange(targetIndex)
+            let pageWidth = CGFloat(visibleCount) * (panelCardSize.width + panelCardSpacing)
+            
+            // 用户要求：每次只翻 0.8 页，不要翻太多
+            let scrollAmount = pageWidth * 0.8
+            
+            var newOffset = scrollView.contentView.bounds.origin
+            if direction == .forward {
+                newOffset.x += scrollAmount
+            } else {
+                newOffset.x -= scrollAmount
+            }
+            
+            // 计算最大可能的偏移量
+            let contentWidth = collectionView.collectionViewLayout?.collectionViewContentSize.width ?? 0
+            let maxOffsetX = max(0, contentWidth - scrollView.contentView.bounds.width)
+            newOffset.x = max(0, min(newOffset.x, maxOffsetX))
+            
+            // 使用 NSAnimationContext 添加平滑动画
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.25 // 0.25秒的平滑过渡
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                context.allowsImplicitAnimation = true
+                scrollView.contentView.animator().setBoundsOrigin(newOffset)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+            }, completionHandler: { [weak self] in
+                guard let self = self else { return }
+                // 动画完成后更新我们自己的 lastVisibleIndex
+                let firstVisibleIndex = Int(floor(newOffset.x / (panelCardSize.width + panelCardSpacing)))
+                self.lastVisibleIndex = max(0, min(self.parent.items.count - 1, firstVisibleIndex))
+                self.parent.onVisibleIndexChange(self.lastVisibleIndex)
+            })
         }
 
         deinit {

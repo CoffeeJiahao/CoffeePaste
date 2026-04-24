@@ -34,6 +34,18 @@ class CustomPanel: NSPanel {
 
         super.sendEvent(event)
     }
+    
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.keyCode == 48 {
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if !flags.contains(.command), !flags.contains(.control), !flags.contains(.option) {
+                let name: Notification.Name = flags.contains(.shift) ? .panelPageBackward : .panelPageForward
+                NotificationCenter.default.post(name: name, object: nil)
+                return true
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 // MARK: - 带动画的容器视图
