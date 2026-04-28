@@ -21,7 +21,7 @@ class ClipboardItem {
     var content: String
     var type: String?
     @Attribute(.externalStorage) var imageData: Data?
-    @Attribute(.externalStorage) var thumbnailData: Data?
+    var thumbnailData: Data?
     var createdAt: Date
     var group: ClipGroup?
 

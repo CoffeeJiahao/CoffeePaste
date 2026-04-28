@@ -109,65 +109,6 @@ struct ClipCard: View {
     @State private var previewLoadTask: Task<Void, Never>? = nil
     @Environment(\.modelContext) private var modelContext
 
-    private func reportPreviewTask() {
-        guard item.type == "image" else { return }
-        debugReportImageScrollEvent(
-            hypothesisId: "A",
-            location: "PanelView+Subviews.swift:ClipCard.task",
-            message: "image preview task fired",
-            data: [
-                "itemId": item.id.uuidString,
-                "shouldShowPreview": String(shouldShowPreview),
-                "hasDecodedImage": String(decodedImage != nil)
-            ]
-        )
-    }
-
-    private func reportCacheHit() {
-        debugReportImageScrollEvent(
-            hypothesisId: "B",
-            location: "PanelView+Subviews.swift:loadImageIfNeeded",
-            message: "preview cache hit",
-            data: [
-                "itemId": item.id.uuidString
-            ]
-        )
-    }
-
-    private func reportDecodeFinished(
-        _ image: NSImage?,
-        thumbnailBytes: Int,
-        fetchDataMs: Double,
-        decodeMs: Double
-    ) {
-        debugReportImageScrollEvent(
-            hypothesisId: "B",
-            location: "PanelView+Subviews.swift:loadImageIfNeeded",
-            message: "preview decode finished",
-            data: [
-                "itemId": item.id.uuidString,
-                "thumbnailBytes": String(thumbnailBytes),
-                "decoded": String(image != nil),
-                "pixelWidth": String(Int(image?.size.width ?? 0)),
-                "pixelHeight": String(Int(image?.size.height ?? 0)),
-                "fetchDataMs": String(format: "%.2f", fetchDataMs),
-                "decodeMs": String(format: "%.2f", decodeMs)
-            ]
-        )
-    }
-
-    private func reportPreviewSkipped() {
-        debugReportImageScrollEvent(
-            hypothesisId: "E",
-            location: "PanelView+Subviews.swift:updatePreviewState",
-            message: "preview skipped while card hidden",
-            data: [
-                "itemId": item.id.uuidString,
-                "hasDecodedImage": String(decodedImage != nil)
-            ]
-        )
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             topBar
@@ -336,9 +277,6 @@ struct ClipCard: View {
         guard item.type == "image" else { return }
         guard decodedImage == nil else { return } // 只解码一次，避免反复 reload 导致卡顿
         if let cached = ClipPreviewImageCache.shared.get(item.id) {
-            // #region debug-point B:image-cache-hit
-            reportCacheHit()
-            // #endregion
             decodedImage = cached
             return
         }
@@ -398,15 +336,6 @@ struct ClipCard: View {
             NSImage(cgImage: $0.cgImage, size: NSSize(width: $0.width, height: $0.height))
         }
 
-        // #region debug-point B:image-decode-finished
-        reportDecodeFinished(
-            nsImage,
-            thumbnailBytes: data.count,
-            fetchDataMs: fetchDataMs,
-            decodeMs: decodeMs
-        )
-        // #endregion
-
         if let nsImage {
             ClipPreviewImageCache.shared.set(nsImage, for: item.id)
         }
@@ -418,9 +347,6 @@ struct ClipCard: View {
     private func updatePreviewState() async {
         guard item.type == "image" else { return }
         guard shouldShowPreview else {
-            // #region debug-point E:preview-skipped
-            reportPreviewSkipped()
-            // #endregion
             return
         }
         await loadImageIfNeeded()
@@ -442,10 +368,6 @@ struct ClipCard: View {
             }
             guard !Task.isCancelled else { return }
             guard shouldShowPreview else { return }
-
-            // #region debug-point A:preview-task
-            reportPreviewTask()
-            // #endregion
 
             await updatePreviewState()
         }

@@ -11,93 +11,6 @@ private final class ScrollMetricsStore {
     var latestOffset: CGFloat = 0
 }
 
-// #region debug-point A:scroll-jank-reporter
-@MainActor
-func debugReportScrollJankEvent(
-    hypothesisId: String,
-    location: String,
-    message: String,
-    data: [String: String] = [:]
-) {
-    // Debug logging can easily destroy scroll performance; keep it opt-in.
-    guard UserDefaults.standard.bool(forKey: "debugScrollJank") else { return }
-
-    let envPath = URL(fileURLWithPath: ".dbg/scroll-jank.env")
-    let fallbackURL = "http://127.0.0.1:7777/event"
-    var serverURL = fallbackURL
-    if let envContent = try? String(contentsOf: envPath),
-       let matchedLine = envContent
-        .split(separator: "\n")
-        .first(where: { $0.hasPrefix("DEBUG_SERVER_URL=") }) {
-        serverURL = String(matchedLine.dropFirst("DEBUG_SERVER_URL=".count))
-    }
-    guard let url = URL(string: serverURL) else { return }
-
-    let payload: [String: Any] = [
-        "sessionId": "scroll-jank",
-        "runId": "post-fix",
-        "hypothesisId": hypothesisId,
-        "location": location,
-        "msg": "[DEBUG] \(message)",
-        "data": data,
-        "ts": Int(Date().timeIntervalSince1970 * 1000)
-    ]
-    guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = body
-    Task.detached {
-        URLSession.shared.dataTask(with: request).resume()
-    }
-}
-// #endregion
-
-// #region debug-point E:image-scroll-jank-reporter
-@MainActor
-func debugReportImageScrollEvent(
-    hypothesisId: String,
-    location: String,
-    message: String,
-    data: [String: String] = [:]
-) {
-    guard UserDefaults.standard.bool(forKey: "debugImageScrollJank") else { return }
-
-    let envPath = URL(fileURLWithPath: ".dbg/image-scroll-jank.env")
-    let fallbackURL = "http://127.0.0.1:7777/event"
-    var serverURL = fallbackURL
-    var sessionID = "image-scroll-jank"
-    if let envContent = try? String(contentsOf: envPath, encoding: .utf8) {
-        for line in envContent.split(separator: "\n") {
-            if line.hasPrefix("DEBUG_SERVER_URL=") {
-                serverURL = String(line.dropFirst("DEBUG_SERVER_URL=".count))
-            } else if line.hasPrefix("DEBUG_SESSION_ID=") {
-                sessionID = String(line.dropFirst("DEBUG_SESSION_ID=".count))
-            }
-        }
-    }
-    guard let url = URL(string: serverURL) else { return }
-
-    let payload: [String: Any] = [
-        "sessionId": sessionID,
-        "runId": "post-fix",
-        "hypothesisId": hypothesisId,
-        "location": location,
-        "msg": "[DEBUG] \(message)",
-        "data": data,
-        "ts": Int(Date().timeIntervalSince1970 * 1000)
-    ]
-    guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = body
-    Task.detached {
-        URLSession.shared.dataTask(with: request).resume()
-    }
-}
-// #endregion
-
 struct PanelView: View {
     @Query(sort: \ClipboardItem.createdAt, order: .reverse) private var items: [ClipboardItem]
     @Query(sort: \ClipGroup.createdAt) private var groups: [ClipGroup]
@@ -426,9 +339,9 @@ struct PanelView: View {
         )
         .onReceive(NotificationCenter.default.publisher(for: .showPanel)) { _ in
             search = ""
+            isSearchFocused = true
             Task { @MainActor in
-                isSearchFocused = false
-                try? await Task.sleep(for: .seconds(0.1))
+                try? await Task.sleep(for: .milliseconds(50))
                 isSearchFocused = true
             }
         }

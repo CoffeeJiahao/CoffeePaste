@@ -144,22 +144,6 @@ final class ClipboardMonitor {
               let bitmap = NSBitmapImageRep(data: tiffData),
               let pngData = bitmap.representation(using: .png, properties: [:]) else { return nil }
 
-        // #region debug-point D:thumbnail-generated
-        debugReportImageScrollEvent(
-            hypothesisId: "D",
-            location: "ClipboardMonitor.swift:generateThumbnail",
-            message: "thumbnail generated",
-            data: [
-                "originalWidth": String(Int(originalSize.width)),
-                "originalHeight": String(Int(originalSize.height)),
-                "thumbnailWidth": String(Int(newSize.width)),
-                "thumbnailHeight": String(Int(newSize.height)),
-                "sourceBytes": String(data.count),
-                "thumbnailBytes": String(pngData.count)
-            ]
-        )
-        // #endregion
-        
         return pngData
     }
 }
