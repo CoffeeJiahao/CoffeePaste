@@ -128,6 +128,11 @@ struct PanelClipCardView: View {
         .contentShape(RoundedRectangle(cornerRadius: 10))
         .onHover { hovered = $0 }
         .onTapGesture { onSelect() }
+        .onChange(of: snapshot.id) { _, _ in
+            decodedImage = nil
+            previewLoadTask?.cancel()
+            previewLoadTask = nil
+        }
         .task(id: snapshot.id) {
             schedulePreviewLoadIfNeeded()
         }

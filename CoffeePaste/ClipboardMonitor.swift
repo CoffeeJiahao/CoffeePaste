@@ -61,42 +61,55 @@ final class ClipboardMonitor {
         guard pb.changeCount != lastChangeCount else { return }
         lastChangeCount = pb.changeCount
 
-        let desc = FetchDescriptor<ClipboardItem>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
-        let latest = try? modelContext.fetch(desc).first
-
+        // 1. 尝试直接获取图片数据（tiff / png）
         if let tiffData = pb.data(forType: .tiff) ?? pb.data(forType: .png) {
-            if latest?.type == "image", latest?.imageData == tiffData { return }
+            let hash = ClipboardItem.hash(of: tiffData)
+            removeDuplicate(hash: hash)
             
             let thumbnail = Self.generateThumbnail(from: tiffData, maxSize: 128)
-            let item = ClipboardItem(content: "[图片]", type: "image", imageData: tiffData, thumbnailData: thumbnail)
+            let item = ClipboardItem(content: "[图片]", type: "image", imageData: tiffData, thumbnailData: thumbnail, contentHash: hash)
             modelContext.insert(item)
             try? modelContext.save()
             trim()
             return
         }
 
-        // 否则检查是否是文本
-        guard let text = pb.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-
-        if text.count < 1024 {
-            var descriptor = FetchDescriptor<ClipboardItem>(
-                predicate: #Predicate { item in
-                    item.content == text && item.type == "text"
-                }
-            )
-            descriptor.fetchLimit = 1
-            if let existing = try? modelContext.fetch(descriptor).first {
-                existing.createdAt = Date()
+        // 2. 尝试从 fileURL 读取图片（浏览器"复制图像"经常只放文件 URL）
+        if let urlData = pb.data(forType: .fileURL),
+           let url = URL(dataRepresentation: urlData, relativeTo: nil) {
+            let ext = url.pathExtension.lowercased()
+            let imageExtensions = Set(["png", "jpg", "jpeg", "tiff", "tif", "gif", "bmp", "webp", "heic", "heif", "svg"])
+            if imageExtensions.contains(ext), let imageData = try? Data(contentsOf: url) {
+                let hash = ClipboardItem.hash(of: imageData)
+                removeDuplicate(hash: hash)
+                
+                let thumbnail = Self.generateThumbnail(from: imageData, maxSize: 128)
+                let item = ClipboardItem(content: "[图片]", type: "image", imageData: imageData, thumbnailData: thumbnail, contentHash: hash)
+                modelContext.insert(item)
                 try? modelContext.save()
+                trim()
                 return
             }
-        } else {
-            if latest?.content == text, latest?.type == "text" { return }
         }
 
-        modelContext.insert(ClipboardItem(content: text, type: "text"))
+        // 3. 检查是否是文本
+        guard let text = pb.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        let textHash = ClipboardItem.hash(of: text)
+        removeDuplicate(hash: textHash)
+
+        modelContext.insert(ClipboardItem(content: text, type: "text", contentHash: textHash))
         try? modelContext.save()
         trim()
+    }
+    
+    private func removeDuplicate(hash: String) {
+        var descriptor = FetchDescriptor<ClipboardItem>(
+            predicate: #Predicate { $0.contentHash == hash }
+        )
+        if let existing = try? modelContext.fetch(descriptor).first {
+            modelContext.delete(existing)
+        }
     }
 
     private func trim() {

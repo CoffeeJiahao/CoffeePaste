@@ -359,14 +359,14 @@ struct PanelView: View {
             triggerPage(.forward)
         }
         .task(id: filterSignature) { @MainActor in
-            let sourceItems = selectedGroup == nil ? Array(items.prefix(maxDisplayCount)) : items
-            filteredItems = sourceItems.filter { item in
+            let filteredSource = items.filter { item in
                 let matchesSearch = search.isEmpty || item.content.localizedCaseInsensitiveContains(search)
                 let matchesImageFilter = !showOnlyImages || item.type == "image"
                 let matchesTextFilter = !showOnlyText || item.type == "text"
                 let matchesGroup = selectedGroup == nil || item.group == selectedGroup
                 return matchesSearch && matchesImageFilter && matchesTextFilter && matchesGroup
             }
+            filteredItems = Array(filteredSource.prefix(maxDisplayCount))
 
             if visibleBaseIndexState >= filteredItems.count {
                 visibleBaseIndexState = max(0, filteredItems.count - 1)

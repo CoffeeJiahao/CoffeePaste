@@ -110,43 +110,32 @@ struct ClipCard: View {
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            topBar
-            contentPreview
-            Spacer(minLength: 0)
-            bottomBar
-        }
-        .frame(width: 160, height: 130)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(NSColor.windowBackgroundColor).opacity(0.85))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(deleteHovered ? Color.red.opacity(0.6) : (hovered ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.08)),
-                        lineWidth: 1.5)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
-        .onHover { hovered = $0 }
-        .onTapGesture { onSelect() }
-        .task(id: item.id) {
-            schedulePreviewLoadIfNeeded()
-        }
-        .onChange(of: shouldShowPreview) { _, newValue in
-            if !newValue {
+        cardContent
+            .onHover { hovered = $0 }
+            .onTapGesture { onSelect() }
+            .onChange(of: item.id) { _, _ in
+                decodedImage = nil
                 previewLoadTask?.cancel()
                 previewLoadTask = nil
-                return
             }
-            schedulePreviewLoadIfNeeded()
-        }
-        .onDisappear {
-            previewLoadTask?.cancel()
-            previewLoadTask = nil
-            releasePreview()
-        }
-        .contextMenu {
-            Menu("添加到分组") {
+            .task(id: item.id) {
+                schedulePreviewLoadIfNeeded()
+            }
+            .onChange(of: shouldShowPreview) { _, newValue in
+                if !newValue {
+                    previewLoadTask?.cancel()
+                    previewLoadTask = nil
+                    return
+                }
+                schedulePreviewLoadIfNeeded()
+            }
+            .onDisappear {
+                previewLoadTask?.cancel()
+                previewLoadTask = nil
+                releasePreview()
+            }
+            .contextMenu {
+                Menu("添加到分组") {
                 if item.group != nil {
                     Button("移除分组") {
                         item.group = nil
@@ -167,6 +156,26 @@ struct ClipCard: View {
                 }
             }
         }
+    }
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            topBar
+            contentPreview
+            Spacer(minLength: 0)
+            bottomBar
+        }
+        .frame(width: 160, height: 130)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(NSColor.windowBackgroundColor).opacity(0.85))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(deleteHovered ? Color.red.opacity(0.6) : (hovered ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.08)),
+                        lineWidth: 1.5)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
     }
 
     private var topBar: some View {

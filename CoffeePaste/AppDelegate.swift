@@ -102,15 +102,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         do {
             container = try ModelContainer(for: ClipboardItem.self, ClipGroup.self)
-            monitor = ClipboardMonitor(modelContext: ModelContext(container))
-            monitor.start()
         } catch {
-            print("Failed to initialize SwiftData ModelContainer: \(error)")
-            let config = ModelConfiguration(isStoredInMemoryOnly: true)
-            container = try? ModelContainer(for: ClipboardItem.self, ClipGroup.self, configurations: config)
-            monitor = ClipboardMonitor(modelContext: ModelContext(container))
-            monitor.start()
+            print("SwiftData schema mismatch, resetting database: \(error)")
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let dbURL = appSupport.appendingPathComponent("default.store")
+            try? FileManager.default.removeItem(at: dbURL)
+            try? FileManager.default.removeItem(at: dbURL.appendingPathExtension("wal"))
+            try? FileManager.default.removeItem(at: dbURL.appendingPathExtension("shm"))
+            do {
+                container = try ModelContainer(for: ClipboardItem.self, ClipGroup.self)
+            } catch {
+                fatalError("Failed to create ModelContainer after reset: \(error)")
+            }
         }
+        monitor = ClipboardMonitor(modelContext: ModelContext(container))
+        monitor.start()
         
         setupPanel()
         setupHotkey()
