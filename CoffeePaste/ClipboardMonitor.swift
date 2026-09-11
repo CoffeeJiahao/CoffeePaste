@@ -64,7 +64,7 @@ final class ClipboardMonitor {
         // 1. 尝试直接获取图片数据（tiff / png）
         if let tiffData = pb.data(forType: .tiff) ?? pb.data(forType: .png) {
             let hash = ClipboardItem.hash(of: tiffData)
-            removeDuplicate(hash: hash)
+            guard removeDuplicate(hash: hash) else { return }
             
             let thumbnail = Self.generateThumbnail(from: tiffData, maxSize: 128)
             let item = ClipboardItem(content: "[图片]", type: "image", imageData: tiffData, thumbnailData: thumbnail, contentHash: hash)
@@ -81,7 +81,7 @@ final class ClipboardMonitor {
             let imageExtensions = Set(["png", "jpg", "jpeg", "tiff", "tif", "gif", "bmp", "webp", "heic", "heif", "svg"])
             if imageExtensions.contains(ext), let imageData = try? Data(contentsOf: url) {
                 let hash = ClipboardItem.hash(of: imageData)
-                removeDuplicate(hash: hash)
+                guard removeDuplicate(hash: hash) else { return }
                 
                 let thumbnail = Self.generateThumbnail(from: imageData, maxSize: 128)
                 let item = ClipboardItem(content: "[图片]", type: "image", imageData: imageData, thumbnailData: thumbnail, contentHash: hash)
@@ -96,20 +96,25 @@ final class ClipboardMonitor {
         guard let text = pb.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
         let textHash = ClipboardItem.hash(of: text)
-        removeDuplicate(hash: textHash)
+        guard removeDuplicate(hash: textHash) else { return }
 
         modelContext.insert(ClipboardItem(content: text, type: "text", contentHash: textHash))
         try? modelContext.save()
         trim()
     }
     
-    private func removeDuplicate(hash: String) {
+    /// 删除重复项。如果重复项已分组则保留，并返回 false 表示不需要插入新记录。
+    private func removeDuplicate(hash: String) -> Bool {
         var descriptor = FetchDescriptor<ClipboardItem>(
             predicate: #Predicate { $0.contentHash == hash }
         )
         if let existing = try? modelContext.fetch(descriptor).first {
+            if existing.group != nil {
+                return false
+            }
             modelContext.delete(existing)
         }
+        return true
     }
 
     private func trim() {
