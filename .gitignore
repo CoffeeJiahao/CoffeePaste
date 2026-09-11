@@ -1,3 +1,5 @@
-CoffeePaste.xcodeproj/project.xcworkspace/xcuserdata/
-build/
-DerivedData
+/CoffeePaste.xcodeproj/project.xcworkspace/xcuserdata/
+/build/
+/DerivedData/
+/.trae/
+/.dbg/

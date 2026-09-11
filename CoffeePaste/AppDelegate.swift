@@ -23,6 +23,11 @@ class CustomPanel: NSPanel {
             NotificationCenter.default.post(name: .commandModifierChanged, object: isPressed)
         }
 
+        if event.type == .keyDown, event.keyCode == 53 {
+            AppDelegate.shared?.hidePanel()
+            return
+        }
+
         if event.type == .keyDown, event.keyCode == 48 {
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if !flags.contains(.command), !flags.contains(.control), !flags.contains(.option) {
